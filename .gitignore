@@ -1,0 +1,28 @@
+# OS / Editor
+.DS_Store
+Thumbs.db
+*.swp
+*~
+.vscode/
+.idea/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+
+# Minecraft / Server Data
+world/
+logs/
+backups/
+*.jar
+*.sqlite
+*.db
+
+# Secrets
+.env
+*token*
+*.key
+*.pem
+graphify-out/
