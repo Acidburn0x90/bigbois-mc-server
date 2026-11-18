@@ -37,6 +37,7 @@ LITE_PREFIXES = (
     "appleskin-",
     "journeymap-",
     "MouseTweaks-",
+    "inventorysorter-",
 )
 
 ULTRA_ONLY_PREFIXES = (
