@@ -39,6 +39,8 @@ LITE_PREFIXES = (
     "journeymap-",
     "MouseTweaks-",
     "inventorysorter-",
+    "litematica-",
+    "malilib-",
 )
 
 ULTRA_ONLY_PREFIXES = (
