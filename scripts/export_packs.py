@@ -40,6 +40,9 @@ LITE_PREFIXES = (
     "inventorysorter-",
     "litematica-",
     "malilib-",
+    "liteminer-",
+    "amber-",
+    "konfig-",
 )
 
 ULTRA_ONLY_PREFIXES = (
