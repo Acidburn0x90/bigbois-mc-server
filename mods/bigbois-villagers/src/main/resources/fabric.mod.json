@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "id": "bigbois-villagers",
+  "version": "1.0.0",
+  "name": "BigBois Villagers",
+  "description": "Server-side crossplay villager QoL: unlimited trading, auto trade cycling with price range indicator, no hit price hikes, awake job claiming, and fletcher 4-log starter trades.",
+  "authors": ["BigBois SMP"],
+  "license": "MIT",
+  "environment": "*",
+  "entrypoints": {
+    "main": [
+      "live.bigbois.villagers.BigBoisVillagersMod"
+    ]
+  },
+  "mixins": [
+    "bigbois-villagers.mixins.json"
+  ],
+  "depends": {
+    "fabricloader": ">=0.20.0",
+    "minecraft": "~26.3",
+    "fabric-api": "*"
+  }
+}
