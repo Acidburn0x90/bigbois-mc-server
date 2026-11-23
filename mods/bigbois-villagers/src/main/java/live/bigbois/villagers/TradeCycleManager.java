@@ -10,12 +10,14 @@ import com.mojang.brigadier.suggestion.SuggestionsBuilder;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.Predicate;
 import live.bigbois.villagers.mixin.VillagerInvoker;
 import net.minecraft.ChatFormatting;
 import net.minecraft.commands.CommandSourceStack;
@@ -35,17 +37,25 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.tags.EnchantmentTags;
+import net.minecraft.tags.ItemTags;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
+import net.minecraft.world.effect.MobEffectInstance;
+import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.ai.memory.MemoryModuleType;
 import net.minecraft.world.entity.npc.villager.Villager;
 import net.minecraft.world.entity.npc.villager.VillagerProfession;
+import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.inventory.MerchantContainer;
 import net.minecraft.world.inventory.MerchantMenu;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.enchantment.Enchantment;
 import net.minecraft.world.item.enchantment.EnchantmentHelper;
+import net.minecraft.world.item.trading.ItemCost;
 import net.minecraft.world.item.trading.MerchantOffer;
 import net.minecraft.world.item.trading.MerchantOffers;
 import net.minecraft.world.level.Level;
@@ -62,10 +72,13 @@ import net.minecraft.world.phys.Vec3;
  */
 public final class TradeCycleManager {
     private static final double SEARCH_RADIUS = 6.0;
+    private static final double CONFIRM_RADIUS_SQR = 64.0;
     private static final int MAX_ROLLS = 10_000;
     private static final long COOLDOWN_TICKS = 10L;
+    private static final int WIPE_TIMEOUT_TICKS = 300;
 
     private static final Map<UUID, Long> LAST_ACTION_TICK = new HashMap<>();
+    private static final Map<UUID, PendingWipe> PENDING_WIPES = new HashMap<>();
 
     private static final Map<String, String> ENCHANT_ALIASES = Map.ofEntries(
         Map.entry("mend", "mending"),
@@ -115,6 +128,8 @@ public final class TradeCycleManager {
                 .executes(ctx -> sendUsage(ctx.getSource()))
                 .then(Commands.literal("list").executes(TradeCycleManager::handleList))
                 .then(Commands.literal("reroll").executes(TradeCycleManager::handleReroll))
+                .then(Commands.literal("wipe").executes(TradeCycleManager::handleWipe))
+                .then(Commands.literal("confirm").executes(TradeCycleManager::handleConfirm))
                 .then(
                     Commands.literal("range")
                         .then(
@@ -237,7 +252,7 @@ public final class TradeCycleManager {
     private static int sendUsage(CommandSourceStack source) {
         source.sendSuccess(
             () -> Component.literal(
-                "[Cycle] Commands: /cycle book <enchant> [level] [max_price] | /cycle range <enchant> [level] | /cycle list | /cycle reroll | Or Sneak+Right-Click a villager (empty hand) or lectern sign."
+                "[Cycle] Commands: /cycle book <enchant> [level] [max_price] | /cycle range <enchant> [level] | /cycle list | /cycle reroll | /cycle wipe -> /cycle confirm | Or Sneak+Right-Click a villager (empty hand) or lectern sign."
             ).withStyle(ChatFormatting.AQUA),
             false
         );
@@ -482,20 +497,27 @@ public final class TradeCycleManager {
     }
 
     private static Villager findTargetVillager(ServerLevel level, Vec3 origin, Vec3 lookDir, boolean librarianOnly) {
-        AABB box = AABB.ofSize(origin, SEARCH_RADIUS * 2.0, SEARCH_RADIUS * 2.0, SEARCH_RADIUS * 2.0);
-        List<Villager> candidates = level.getEntitiesOfClass(Villager.class, box, villager -> {
+        return findBestVillager(level, origin, lookDir, villager -> {
             if (villager.isBaby() || villager.isSleeping() || isLocked(villager)) {
                 return false;
             }
-            if (villager.position().subtract(origin).lengthSqr() > SEARCH_RADIUS * SEARCH_RADIUS) {
-                return false;
-            }
             var prof = villager.getVillagerData().profession();
-            if (librarianOnly) {
-                return prof.is(VillagerProfession.LIBRARIAN);
-            }
-            return !prof.is(VillagerProfession.NONE) && !prof.is(VillagerProfession.NITWIT);
+            return librarianOnly
+                ? prof.is(VillagerProfession.LIBRARIAN)
+                : !prof.is(VillagerProfession.NONE) && !prof.is(VillagerProfession.NITWIT);
         });
+    }
+
+    private static Villager findBestVillager(
+        ServerLevel level,
+        Vec3 origin,
+        Vec3 lookDir,
+        Predicate<Villager> filter
+    ) {
+        AABB box = AABB.ofSize(origin, SEARCH_RADIUS * 2.0, SEARCH_RADIUS * 2.0, SEARCH_RADIUS * 2.0);
+        List<Villager> candidates = level.getEntitiesOfClass(Villager.class, box, villager ->
+            villager.position().subtract(origin).lengthSqr() <= SEARCH_RADIUS * SEARCH_RADIUS && filter.test(villager)
+        );
 
         Villager best = null;
         double bestScore = Double.NEGATIVE_INFINITY;
@@ -509,6 +531,225 @@ public final class TradeCycleManager {
             }
         }
         return best;
+    }
+
+    private static int handleWipe(CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {
+        ServerPlayer sp = ctx.getSource().getPlayerOrException();
+        ServerLevel level = sp.level();
+        Villager villager = findBestVillager(level, sp.getEyePosition(), sp.getLookAngle(), v -> !v.isBaby());
+        if (villager == null) {
+            ctx.getSource().sendFailure(Component.literal("[Cycle] No villager found within 6 blocks."));
+            return 0;
+        }
+        var data = villager.getVillagerData();
+        if (data.profession().is(VillagerProfession.NONE) && data.level() <= 1 && villager.getVillagerXp() == 0) {
+            ctx.getSource().sendFailure(Component.literal("[Cycle] This villager is already unemployed and has no trades."));
+            return 0;
+        }
+
+        long expiresAt = level.getGameTime() + WIPE_TIMEOUT_TICKS;
+        PENDING_WIPES.put(sp.getUUID(), new PendingWipe(villager.getUUID(), level.dimension(), expiresAt));
+        villager.addEffect(new MobEffectInstance(MobEffects.GLOWING, WIPE_TIMEOUT_TICKS, 0, false, false));
+
+        String profName = data.profession().value().name().getString();
+        sp.sendSystemMessage(
+            Component.literal(
+                "[Cycle] Highlighted " + profName + " (Level " + data.level()
+                    + "). Type /cycle confirm within 15 seconds to wipe its job and trades back to unemployed."
+            ).withStyle(ChatFormatting.YELLOW)
+        );
+        return 1;
+    }
+
+    private static int handleConfirm(CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {
+        ServerPlayer sp = ctx.getSource().getPlayerOrException();
+        ServerLevel level = sp.level();
+        PendingWipe pending = PENDING_WIPES.remove(sp.getUUID());
+        if (pending == null || level.getGameTime() > pending.expiresAtTick()) {
+            ctx.getSource().sendFailure(Component.literal("[Cycle] No active wipe to confirm. Run /cycle wipe first."));
+            return 0;
+        }
+        if (!level.dimension().equals(pending.dimension())) {
+            ctx.getSource().sendFailure(Component.literal("[Cycle] You changed dimensions. Run /cycle wipe again."));
+            return 0;
+        }
+
+        Entity entity = level.getEntity(pending.villagerUuid());
+        if (!(entity instanceof Villager villager) || !villager.isAlive()) {
+            ctx.getSource().sendFailure(Component.literal("[Cycle] That villager is no longer available."));
+            return 0;
+        }
+        if (villager.position().distanceToSqr(sp.position()) > CONFIRM_RADIUS_SQR) {
+            ctx.getSource().sendFailure(Component.literal("[Cycle] Move back within 8 blocks of the villager and run /cycle wipe again."));
+            return 0;
+        }
+
+        if (villager.getTradingPlayer() instanceof ServerPlayer trader) {
+            trader.closeContainer();
+        }
+        var oldData = villager.getVillagerData();
+        BigBoisVillagersMod.LOGGER.info(
+            "Player {} wiped villager {} ({} lvl {})",
+            sp.getName().getString(),
+            villager.getUUID(),
+            oldData.profession().value().name().getString(),
+            oldData.level()
+        );
+
+        villager.releasePoi(MemoryModuleType.JOB_SITE);
+        villager.releasePoi(MemoryModuleType.POTENTIAL_JOB_SITE);
+        villager.getBrain().eraseMemory(MemoryModuleType.JOB_SITE);
+        villager.getBrain().eraseMemory(MemoryModuleType.POTENTIAL_JOB_SITE);
+        villager.setVillagerXp(0);
+        villager.setVillagerData(oldData.withProfession(level.registryAccess(), VillagerProfession.NONE).withLevel(1));
+        villager.setOffers(null);
+        villager.refreshBrain(level);
+        villager.removeEffect(MobEffects.GLOWING);
+        playFeedback(level, villager, true);
+
+        sp.sendSystemMessage(
+            Component.literal("[Cycle] Villager wiped! It is now unemployed and ready for a new job.").withStyle(ChatFormatting.GREEN)
+        );
+        return 1;
+    }
+
+    /** Matches a Fletcher's 4-log starter offer to the player's carried wood when opening the trade screen. */
+    public static void adaptFletcherLogOfferOnOpen(Villager villager, ServerPlayer sp) {
+        if (!villager.getVillagerData().profession().is(VillagerProfession.FLETCHER)) {
+            return;
+        }
+        MerchantOffers offers = villager.getOffers();
+        for (int i = 0; i < offers.size(); i++) {
+            MerchantOffer offer = offers.get(i);
+            if (isFletcherLogOffer(offer)) {
+                Item current = offer.getBaseCostA().getItem();
+                Item preferred = findPreferredLog(sp, ItemStack.EMPTY, current, Math.max(1, offer.getCostA().getCount()));
+                if (preferred != null && preferred != current) {
+                    offers.set(i, replaceLogOffer(offer, preferred));
+                }
+                break;
+            }
+        }
+    }
+
+    /** Switches a Fletcher's 4-log offer after a trade if the player ran out of the current log type and carries another. */
+    public static void adaptFletcherLogOfferAfterTrade(
+        Villager villager,
+        ServerPlayer sp,
+        MerchantMenu menu,
+        MerchantOffer tradedOffer
+    ) {
+        if (!isFletcherLogOffer(tradedOffer)) {
+            return;
+        }
+        MerchantOffers offers = villager.getOffers();
+        int idx = offers.indexOf(tradedOffer);
+        if (idx < 0) {
+            for (int i = 0; i < offers.size(); i++) {
+                if (isFletcherLogOffer(offers.get(i))) {
+                    idx = i;
+                    break;
+                }
+            }
+        }
+        if (idx < 0) {
+            return;
+        }
+        MerchantOffer currentOffer = offers.get(idx);
+        Item current = currentOffer.getBaseCostA().getItem();
+        ItemStack slot0 = menu.getSlot(0).getItem();
+        Item preferred = findPreferredLog(sp, slot0, current, Math.max(1, currentOffer.getCostA().getCount()));
+        if (preferred != null && preferred != current) {
+            offers.set(idx, replaceLogOffer(currentOffer, preferred));
+            menu.setOffers(offers);
+            sp.sendMerchantOffers(
+                menu.containerId,
+                offers,
+                villager.getVillagerData().level(),
+                villager.getVillagerXp(),
+                villager.showProgressBar(),
+                villager.canRestock()
+            );
+        }
+    }
+
+    /** Switches a Fletcher's 4-log offer right before {@link MerchantMenu#tryMoveItems(int)} fills payment slots. */
+    public static void adaptFletcherLogOfferForMenu(
+        Villager villager,
+        ServerPlayer sp,
+        MerchantMenu menu,
+        MerchantContainer tradeContainer,
+        int idx
+    ) {
+        MerchantOffers offers = villager.getOffers();
+        if (idx < 0 || idx >= offers.size()) {
+            return;
+        }
+        MerchantOffer offer = offers.get(idx);
+        if (!isFletcherLogOffer(offer)) {
+            return;
+        }
+        Item current = offer.getBaseCostA().getItem();
+        Item preferred = findPreferredLog(sp, tradeContainer.getItem(0), current, Math.max(1, offer.getCostA().getCount()));
+        if (preferred != null && preferred != current) {
+            offers.set(idx, replaceLogOffer(offer, preferred));
+            menu.setOffers(offers);
+            sp.sendMerchantOffers(
+                menu.containerId,
+                offers,
+                villager.getVillagerData().level(),
+                villager.getVillagerXp(),
+                villager.showProgressBar(),
+                villager.canRestock()
+            );
+        }
+    }
+
+    private static boolean isFletcherLogOffer(MerchantOffer offer) {
+        return offer.getBaseCostA().is(ItemTags.LOGS)
+            && offer.getBaseCostA().getCount() == 4
+            && offer.getResult().is(Items.EMERALD);
+    }
+
+    private static Item findPreferredLog(ServerPlayer sp, ItemStack paymentSlotStack, Item currentLog, int requiredCount) {
+        Map<Item, Integer> logCounts = new LinkedHashMap<>();
+        Inventory inv = sp.getInventory();
+        ItemStack selected = inv.getSelectedItem();
+        if (!selected.isEmpty() && selected.is(ItemTags.LOGS)) {
+            logCounts.merge(selected.getItem(), selected.getCount(), Integer::sum);
+        }
+        int selectedSlot = inv.getSelectedSlot();
+        for (int slot = 0; slot < 36; slot++) {
+            if (slot == selectedSlot) {
+                continue;
+            }
+            ItemStack stack = inv.getItem(slot);
+            if (!stack.isEmpty() && stack.is(ItemTags.LOGS)) {
+                logCounts.merge(stack.getItem(), stack.getCount(), Integer::sum);
+            }
+        }
+        if (!paymentSlotStack.isEmpty() && paymentSlotStack.is(ItemTags.LOGS)) {
+            logCounts.merge(paymentSlotStack.getItem(), paymentSlotStack.getCount(), Integer::sum);
+        }
+
+        if (logCounts.getOrDefault(currentLog, 0) >= requiredCount) {
+            return null;
+        }
+        for (Map.Entry<Item, Integer> entry : logCounts.entrySet()) {
+            if (entry.getValue() >= requiredCount) {
+                return entry.getKey();
+            }
+        }
+        if (logCounts.getOrDefault(currentLog, 0) == 0 && !logCounts.isEmpty()) {
+            return logCounts.keySet().iterator().next();
+        }
+        return null;
+    }
+
+    private static MerchantOffer replaceLogOffer(MerchantOffer old, Item newLog) {
+        MerchantOffer updated = new MerchantOffer(new ItemCost(newLog, 4), new ItemStack(Items.EMERALD, 1), 16, 2, 0.05F);
+        updated.setSpecialPriceDiff(old.getSpecialPriceDiff());
+        return updated;
     }
 
     private static boolean isLocked(Villager villager) {
@@ -656,6 +897,8 @@ public final class TradeCycleManager {
             }
         };
     }
+
+    private record PendingWipe(UUID villagerUuid, ResourceKey<Level> dimension, long expiresAtTick) {}
 
     private record SignQuery(String enchantRaw, Integer level, int maxPrice) {}
 }

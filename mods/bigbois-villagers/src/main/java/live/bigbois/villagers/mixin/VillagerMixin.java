@@ -1,7 +1,10 @@
 package live.bigbois.villagers.mixin;
 
 import java.util.Optional;
+import live.bigbois.villagers.TradeCycleManager;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.tags.ItemTags;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.ai.gossip.GossipContainer;
 import net.minecraft.world.entity.ai.gossip.GossipType;
@@ -10,6 +13,7 @@ import net.minecraft.world.entity.ai.village.ReputationEventType;
 import net.minecraft.world.entity.npc.villager.Villager;
 import net.minecraft.world.entity.npc.villager.VillagerProfession;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.inventory.MerchantMenu;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.trading.ItemCost;
@@ -62,7 +66,7 @@ public class VillagerMixin {
         offers.removeIf(offer -> offer.getBaseCostA().is(Items.STICK) && offer.getResult().is(Items.EMERALD));
 
         boolean hasLogTrade = offers.stream().anyMatch(
-            offer -> offer.getBaseCostA().is(Items.OAK_LOG)
+            offer -> offer.getBaseCostA().is(ItemTags.LOGS)
                 && offer.getBaseCostA().getCount() == 4
                 && offer.getResult().is(Items.EMERALD)
         );
@@ -89,6 +93,21 @@ public class VillagerMixin {
                 1,
                 0.05F
             ));
+        }
+    }
+
+    @Inject(method = "startTrading", at = @At("HEAD"))
+    private void bigbois$adaptFletcherLogOnOpen(Player player, CallbackInfo ci) {
+        if (player instanceof ServerPlayer sp) {
+            TradeCycleManager.adaptFletcherLogOfferOnOpen((Villager) (Object) this, sp);
+        }
+    }
+
+    @Inject(method = "rewardTradeXp", at = @At("TAIL"))
+    private void bigbois$adaptFletcherLogAfterTrade(MerchantOffer offer, CallbackInfo ci) {
+        Villager self = (Villager) (Object) this;
+        if (self.getTradingPlayer() instanceof ServerPlayer sp && sp.containerMenu instanceof MerchantMenu menu) {
+            TradeCycleManager.adaptFletcherLogOfferAfterTrade(self, sp, menu, offer);
         }
     }
 }

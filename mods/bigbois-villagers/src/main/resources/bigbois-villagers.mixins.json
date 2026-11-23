@@ -5,6 +5,7 @@
   "compatibilityLevel": "JAVA_25",
   "mixins": [
     "MerchantOfferMixin",
+    "MerchantMenuMixin",
     "ItemCostMixin",
     "VillagerMixin",
     "VillagerInvoker",
