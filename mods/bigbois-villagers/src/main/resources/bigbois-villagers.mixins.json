@@ -9,7 +9,8 @@
     "ItemCostMixin",
     "VillagerMixin",
     "VillagerInvoker",
-    "GoToPotentialJobSiteMixin"
+    "GoToPotentialJobSiteMixin",
+    "EnchantmentHelperMixin"
   ],
   "injectors": {
     "defaultRequire": 1

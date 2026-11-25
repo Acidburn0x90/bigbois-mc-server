@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-SERVER_DIR="/var/opt/minecraft/crafty/crafty-4/servers/8b9dd022-ae6d-42b9-b0ea-87f33310c950"
+SERVER_DIR="${SERVER_DIR:?Set SERVER_DIR to the Fabric 26.3 server directory}"
 MOD_DIR="$(cd "$(dirname "$0")" && pwd)"
 WORK_DIR="$(mktemp -d)"
 trap 'rm -rf "$WORK_DIR"' EXIT
@@ -31,5 +31,5 @@ javac --release 25 -Xlint:all -cp "$CLASSPATH" -d "$WORK_DIR/classes" "${JAVA_SR
 
 cp -r "$MOD_DIR/src/main/resources/"* "$WORK_DIR/classes/"
 mkdir -p "$MOD_DIR/build"
-jar --create --file "$MOD_DIR/build/bigbois-villagers-1.1.0.jar" -C "$WORK_DIR/classes" .
-echo "Built $MOD_DIR/build/bigbois-villagers-1.1.0.jar"
+jar --create --file "$MOD_DIR/build/bigbois-villagers-1.2.0.jar" -C "$WORK_DIR/classes" .
+echo "Built $MOD_DIR/build/bigbois-villagers-1.2.0.jar"
