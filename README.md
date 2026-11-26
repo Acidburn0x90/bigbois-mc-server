@@ -12,7 +12,7 @@ Infrastructure, mod stack, and modpack export tooling for **`mc.bigbois.live`**.
 ## Server Mods (`26.3` Fabric)
 - **Cross-Play & Multi-Version:** `Geyser-Fabric`, `Floodgate-Fabric`, `ViaFabric` (`ViaVersion`), `ViaBackwards`, `ViaRewind`
 - **Discord Bridge:** `Discord-MC-Chat` (`3.0.0-beta.3`, `single_server` mode, player slash commands excluded from `#mc-chat`)
-- **Performance & LODs:** `Lithium`, `FerriteCore`, `C2ME`, `ScalableLux`, `ServerCore` (`VIEW_DISTANCE` `8`–`16`, `SIMULATION_DISTANCE` `6`–`12`, `CHUNK_TICK_DISTANCE` `5`–`8`, Entity Activation Range enabled), `Let Me Despawn` (`+ Almanac`), `Krypton`, `Alternate Current`, `VMP`, `Clumps`, `Chunky`, `Distant Horizons` (`3.3.4`, `4000 KB/s` streaming, `256`-chunk LODs), `spark`
+- **Performance & LODs:** `Lithium`, `FerriteCore`, `C2ME`, `ScalableLux`, `ServerCore` (`VIEW_DISTANCE` `8`–`16`, `SIMULATION_DISTANCE` `6`–`12`, `CHUNK_TICK_DISTANCE` `5`–`8`), `Let Me Despawn` (`+ Almanac`), `Krypton`, `Alternate Current`, `VMP`, `Clumps`, `Chunky`, `Distant Horizons` (`3.3.4`, `4000 KB/s` streaming, `256`-chunk LODs), `spark`
 - **Gameplay QoL:** `JEI` (`+ MezzConfig`), `Veinminer` (enchant-compatible, 0 extra durability/hunger), `Tree Harvester` (`+ Collective`, fast leaf decay, auto sapling replant, 0 extra durability/hunger), `JourneyMap` (`6.0.10`) + `JourneyMap Shared Maps` (`1.8`), `BigBois Villagers` (`1.3.0`, server-side cross-play unlimited trading, `/cycle` + sign + sneak-click Librarian trade cycling with price range indicator, `/cycle wipe` + `/cycle confirm` villager reset, no hit price hikes, awake job claiming, Fletcher 3-trade start with dynamic `4 Logs -> 1 Emerald` Spacebar support, inventory-wide Mending, and cross-play `jmsharedmaps` relay guard)
 
 ## Scripts
