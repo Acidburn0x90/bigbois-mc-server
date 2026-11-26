@@ -2,6 +2,7 @@
   "required": true,
   "minVersion": "0.8",
   "package": "live.bigbois.villagers.mixin",
+  "plugin": "live.bigbois.villagers.mixin.BigBoisMixinPlugin",
   "compatibilityLevel": "JAVA_25",
   "mixins": [
     "MerchantOfferMixin",
@@ -10,7 +11,8 @@
     "VillagerMixin",
     "VillagerInvoker",
     "GoToPotentialJobSiteMixin",
-    "EnchantmentHelperMixin"
+    "EnchantmentHelperMixin",
+    "JmSharedMapsRelayGuardMixin"
   ],
   "injectors": {
     "defaultRequire": 1

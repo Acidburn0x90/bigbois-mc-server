@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
   "id": "bigbois-villagers",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "name": "BigBois Villagers",
-  "description": "Server-side crossplay villager and QoL tweaks: unlimited trading, auto trade cycling with price range indicator, no hit price hikes, awake job claiming, fletcher 4-log starter trades, and inventory-wide Mending.",
+  "description": "Server-side crossplay QoL: unlimited trading, auto trade cycling with price range indicator, no hit price hikes, awake job claiming, fletcher 4-log starter trades, inventory-wide Mending, and cross-play shared-map guard.",
   "authors": ["BigBois SMP"],
   "license": "MIT",
   "environment": "*",

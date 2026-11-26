@@ -37,6 +37,7 @@ LITE_PREFIXES = (
     "Jade-",
     "appleskin-",
     "journeymap-",
+    "jmsharedmaps-",
     "MouseTweaks-",
     "inventorysorter-",
     "litematica-",
@@ -83,6 +84,10 @@ def add_overrides(zf: zipfile.ZipFile, jars: list[Path], include_dh_shaders: boo
         if fpath.exists():
             zf.write(fpath, f"overrides/{fname}")
 
+    jm_core_cfg = SRC / "journeymap" / "config" / "6.0" / "journeymap.core.config"
+    if jm_core_cfg.exists():
+        zf.write(jm_core_cfg, "overrides/journeymap/config/6.0/journeymap.core.config")
+
     cfg_dir = SRC / "config"
     for p in sorted(cfg_dir.rglob("*")):
         if not p.is_file():
@@ -91,7 +96,7 @@ def add_overrides(zf: zipfile.ZipFile, jars: list[Path], include_dh_shaders: boo
         if not include_dh_shaders and (rel.name == "DistantHorizons.toml" or rel.name == "iris.properties"):
             continue
         if include_dh_shaders and rel.name == "iris.properties":
-            text = p.read_text().replace("enableShaders=false", "enableShaders=true")
+            text = p.read_text().replace("enableShaders=true", "enableShaders=false")
             zf.writestr(f"overrides/config/{rel.as_posix()}", text)
         else:
             zf.write(p, f"overrides/config/{rel.as_posix()}")
@@ -112,7 +117,7 @@ def export_tier(slug: str, spec: dict, all_jars: list[Path]) -> tuple[int, Path,
     mrpack_index = {
         "formatVersion": 1,
         "game": "minecraft",
-        "versionId": "1.0.0",
+        "versionId": "1.0.4",
         "name": spec["name"],
         "summary": spec["summary"],
         "files": [],
@@ -134,7 +139,7 @@ def export_tier(slug: str, spec: dict, all_jars: list[Path]) -> tuple[int, Path,
         "manifestType": "minecraftModpack",
         "manifestVersion": 1,
         "name": spec["name"],
-        "version": "1.0.0",
+        "version": "1.0.4",
         "author": os.environ.get("PACK_AUTHOR", "BigBois SMP"),
         "files": [],
         "overrides": "overrides",

@@ -21,6 +21,6 @@ public class BigBoisVillagersMod implements ModInitializer {
         );
         UseEntityCallback.EVENT.register(TradeCycleManager::onUseEntity);
         UseBlockCallback.EVENT.register(TradeCycleManager::onUseBlock);
-        LOGGER.info("Initialized BigBois Villagers 1.2.0 (cross-play server-side villager QoL & inventory Mending)");
+        LOGGER.info("Initialized BigBois Villagers 1.3.0 (cross-play server-side QoL, inventory Mending & shared-map guard)");
     }
 }

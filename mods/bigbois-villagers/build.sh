@@ -31,5 +31,5 @@ javac --release 25 -Xlint:all -cp "$CLASSPATH" -d "$WORK_DIR/classes" "${JAVA_SR
 
 cp -r "$MOD_DIR/src/main/resources/"* "$WORK_DIR/classes/"
 mkdir -p "$MOD_DIR/build"
-jar --create --file "$MOD_DIR/build/bigbois-villagers-1.2.0.jar" -C "$WORK_DIR/classes" .
-echo "Built $MOD_DIR/build/bigbois-villagers-1.2.0.jar"
+jar --create --file "$MOD_DIR/build/bigbois-villagers-1.3.0.jar" -C "$WORK_DIR/classes" .
+echo "Built $MOD_DIR/build/bigbois-villagers-1.3.0.jar"
